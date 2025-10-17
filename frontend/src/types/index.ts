@@ -5,3 +5,13 @@ export interface User {
   role: string;
   createdAt: Date;
 }
+
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+export interface ApiError {
+  error: string;
+  details?: any;
+}
