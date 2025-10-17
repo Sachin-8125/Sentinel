@@ -13,5 +13,5 @@ export interface AuthResponse {
 
 export interface ApiError {
   error: string;
-  details?: any;
+  details?: unknown;
 }
