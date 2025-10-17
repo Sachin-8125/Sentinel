@@ -85,5 +85,43 @@ class ApiClient {
   }
 
   //System Reading
+  async addSystemReading(
+    reading: Omit<SystemReading, "id" | "userId" | "timestamp">,
+  ): Promise<any> {
+    return this.request("/api/system/readings", {
+      method: "POST",
+      body: JSON.stringify(reading),
+    });
+  }
+
+  async getSystemReadings(limit = 50): Promise<{ readings: SystemReading[] }> {
+    return this.request<{ readings: SystemReading[] }>(
+      `/api/system/readings?limit=${limit}`,
+    );
+  }
+
+  async getSystemStatus(): Promise<{ status: SystemReading }> {
+    return this.request<{ status: SystemReading }>("/api/system/status");
+  }
+
+  //Alerts
+  async getActiveAlerts(): Promise<{ alerts: Alert[] }> {
+    return this.request<{ alerts: Alert[] }>("/api/system/alerts");
+  }
+
+  async getAllAlerts(limit = 100): Promise<{ alerts: Alert[] }> {
+    return this.request<{ alerts: Alert[] }>(
+      `/api/system/alerts/all?limit=${limit}`,
+    );
+  }
+
+  async resolveAlert(alertId: string): Promise<{ alert: Alert }> {
+    return this.request<{ alert: Alert }>(
+      `/api/system/alerts/${alertId}/resolve`,
+      {
+        method: "PATCH",
+      },
+    );
+  }
 }
 export const api = new ApiClient();
