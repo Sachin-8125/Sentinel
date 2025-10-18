@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user") // user, admin, mission_control
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  healthReadings HealthReading[]
+  systemReadings SystemReading[]
+  alerts         Alert[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model HealthReading {
+  id              String   @id @default(cuid())
+  userId          String
+  heartRate       Float // BPM
+  spO2            Float // Blood Oxygen %
+  systolicBP      Float // Blood Pressure systolic
+  diastolicBP     Float // Blood Pressure diastolic
+  skinTemp        Float // Celsius
+  respiratoryRate Float? // Optional
+  timestamp       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("health_readings")
+  @@index([userId, timestamp])
+}
+
+model SystemReading {
+  id                    String   @id @default(cuid())
+  userId                String
+  cabinCO2              Float // mmHg
+  cabinO2               Float // Percentage
+  cabinPressure         Float // kPa
+  cabinTemp             Float // Celsius
+  cabinHumidity         Float // Percentage
+  powerConsumption      Float // Watts
+  waterReclamationLevel Float // Percentage
+  wasteManagementLevel  Float // Percentage
+  timestamp             DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("system_readings")
+  @@index([userId, timestamp])
+}
+
+model Alert {
+  id             String   @id @default(cuid())
+  userId         String?
+  type           String // CRITICAL, WARNING, INFO
+  category       String // HEALTH, SYSTEM, ENVIRONMENT
+  title          String
+  message        String
+  recommendation String
+  resolved       Boolean  @default(false)
+  timestamp      DateTime @default(now())
+  resolvedAt     DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("alerts")
+  @@index([timestamp, resolved])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  details   String?
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+  @@index([userId, timestamp])
+}
