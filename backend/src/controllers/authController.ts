@@ -22,7 +22,21 @@ const loginSchema = z.object({
 
 export const signup = async (req: Request, res: Response) => {
   try {
+    console.log("Signup request received:", {
+      email: req.body.email,
+      name: req.body.name,
+    });
+
+    // Check JWT_SECRET
+    if (!JWT_SECRET) {
+      console.error("JWT_SECRET is not set in environment variables");
+      return res
+        .status(500)
+        .json({ error: "Server configuration error: JWT_SECRET missing" });
+    }
+
     const validatedData = signupSchema.parse(req.body);
+    console.log("Validation passed");
 
     //check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -30,13 +44,16 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     if (existingUser) {
+      console.log("User already exists:", validatedData.email);
       return res.status(400).json({ error: "User already exists" });
     }
 
     //Hash password
+    console.log("Hashing password...");
     const hashedPassword = await bcrypt.hash(validatedData.password, 10);
 
     //create user
+    console.log("Creating user in database...");
     const user = await prisma.user.create({
       data: {
         email: validatedData.email,
@@ -52,6 +69,7 @@ export const signup = async (req: Request, res: Response) => {
         createdAt: true,
       },
     });
+    console.log("User created successfully:", user.id);
 
     //create jwt jsonwebtoken
     const token = jwt.sign(
@@ -69,24 +87,37 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     //log audit
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "USER_SIGNUP",
-        details: `User ${user.email} signed up`,
-        ipAddress: req.ip,
-      },
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "USER_SIGNUP",
+          details: `User ${user.email} signed up`,
+          ipAddress: req.ip,
+        },
+      });
+    } catch (auditError) {
+      console.error("Audit log creation failed (non-critical):", auditError);
+    }
 
+    console.log("Signup completed successfully");
     res.status(201).json({ user, token });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error("Validation error:", error.issues);
       return res
         .status(400)
-        .json({ error: "Invalid input", details: error.errors });
+        .json({ error: "Invalid input", details: error.issues });
     }
-    console.error("Signup error:", error);
-    res.status(500).json({ error: "Signup failed" });
+    console.error("Signup error details:", error);
+    console.error(
+      "Error stack:",
+      error instanceof Error ? error.stack : "No stack trace",
+    );
+    res.status(500).json({
+      error: "Signup failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 };
 
@@ -152,7 +183,7 @@ export const login = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res
         .status(400)
-        .json({ error: "Invalid input", details: error.errors });
+        .json({ error: "Invalid input", details: error.issues });
     }
     console.error("Login error:", error);
     res.status(500).json({ error: "Login failed" });
@@ -184,7 +215,7 @@ export const logout = async (req: Request, res: Response) => {
 
 export const getCurrentUser = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).userId;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

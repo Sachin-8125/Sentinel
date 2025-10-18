@@ -58,7 +58,7 @@ export const addHealthReading = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res
         .status(400)
-        .json({ error: "Invalid input", details: error.errors });
+        .json({ error: "Invalid input", details: error.issues });
     }
     console.error("Add health reading error:", error);
     res.status(500).json({ error: "Failed to add health reading" });

@@ -1,10 +1,17 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
-const app = express();
-const PORT = process.env.PORT || 3000;
+import healthRoutes from "./routes/health";
+import systemRoutes from "./routes/system";
 
-//middleware
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -13,16 +20,19 @@ app.use(
 );
 
 app.use(express.json());
+app.use(cookieParser());
 
-//Routes
+// Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/health", healthRoutes);
+app.use("/api/system", systemRoutes);
 
-//health check
+// Health check
 app.get("/api/ping", (req, res) => {
   res.json({ message: "Sentinel API is running", timestamp: new Date() });
 });
 
-//error handling middleware
+// Error handling middleware
 app.use(
   (
     err: any,
@@ -31,11 +41,14 @@ app.use(
     next: express.NextFunction,
   ) => {
     console.error("Error:", err);
-    res.status(err.status || 500).json({ error: "Internal Server Error" });
+    res.status(err.status || 500).json({
+      error: err.message || "Internal Server Error",
+      details: process.env.NODE_ENV === "development" ? err.stack : undefined,
+    });
   },
 );
 
 app.listen(PORT, () => {
-  console.log(`Sentinel API is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`🚀 Sentinel API running on http://localhost:${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
 });
