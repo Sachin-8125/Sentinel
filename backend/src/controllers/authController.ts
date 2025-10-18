@@ -89,3 +89,121 @@ export const signup = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Signup failed" });
   }
 };
+
+//login
+export const login = async (req: Request, res: Response) => {
+  try {
+    const validatedData = loginSchema.parse(req.body);
+
+    //find user
+    const user = await prisma.user.findUnique({
+      where: { email: validatedData.email },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(
+      validatedData.password,
+      user.password,
+    );
+
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    // Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Log audit
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "USER_LOGIN",
+        details: `User ${user.email} logged in`,
+        ipAddress: req.ip,
+      },
+    });
+
+    const userWithoutPassword = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt,
+    };
+
+    res.json({ user: userWithoutPassword, token });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Invalid input", details: error.errors });
+    }
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Login failed" });
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+
+    if (userId) {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: "USER_LOGOUT",
+          details: "User logged out",
+          ipAddress: req.ip,
+        },
+      });
+    }
+
+    res.clearCookie("token");
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ error: "Logout failed" });
+  }
+};
+
+export const getCurrentUser = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error("Get current user error:", error);
+    res.status(500).json({ error: "Failed to get user" });
+  }
+};
